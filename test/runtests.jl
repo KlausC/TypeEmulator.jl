@@ -1,5 +1,5 @@
-using TypeHierarchy
+using JuliaTypeEmulator
 using Base.Test
 
-# write your own tests here
-@test 1 == 2
+include("multrait.jl")
+

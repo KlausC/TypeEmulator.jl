@@ -1,4 +1,4 @@
-The TypeHierarchy.jl package is licensed under the MIT "Expat" License:
+The JuliaTypeEmulator.jl package is licensed under the MIT "Expat" License:
 
 > Copyright (c) 2017: Klaus Crusius.
 > 
