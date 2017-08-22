@@ -1,60 +1,55 @@
 
 # convert the originals of the Julia reflection data to the New versions
 
-import Base.convert
 import Base.MethodList
 
-assoctype(::Void) = Void
-assoctype(::TypeName) = NewTypeName
-assoctype(::DataType) = NewDataType
-assoctype(::Union) = NewUnion
-# assoctype(::TypeVar) = NewTypeVar
-assoctype(::UnionAll) = NewUnionAll
-assoctype(::Method) = NewMethod
-assoctype(::TypeMapEntry) = NewTypeMapEntry
-assoctype(::MethodTable) = NewMethodTable
-assoctype(::MethodList) = NewMethodList
+emulate(a::Type{Union{}}) = NewBottom
+emulate(a::Type{T}) where T<:Union = NewUnion(emulate(a.a), emulate(a.b))
 
-const MTypes = Union{Void, TypeName, DataType, Union, UnionAll, Method, TypeMapEntry, MethodTable, MethodList}
+emulate(x) = x
 
-convert(a::T) where T<:MTypes =  a == Any ? NewAny : convert(assoctype(a), a)
-convert(a::Type{Union{}}) = NewBottom
-convert(a::Type{T}) where T<:Union = NewUnion(convert(a.a), convert(a.b))
+emulate(x::TypeName) = NewTypeName(x.name, emulate(x.module)) 
+emulate(x::TypeVar) = NewTypeVar(x.name, emulate(x.lb), emulate(x.ub))
 
-convert(x) = x
-
-convert(::Type{NewTypeName}, x::TypeName) = NewTypeName(x.name) 
-
-function convert(::Type{NewDataType}, x::DataType)
-    parameters = map(convert, x.parameters)
+function emulate(x::DataType)
+    x == Any && return NewAny
+    m = emulate(x.name.module)
+    super = [emulate(x.super)]
+    parameters = map(emulate, x.parameters)
     dtkey = DataTypeKey(x.name.name, parameters)
-    gettype!(dtkey) do
-        super = [gettype!(dtkey) do ; convert(x.super) end]
-        NewDataType(x.name, super, parameters, x.abstract, x.mutable, x.isleaftype)
+    getconstant!(m, dtkey) do
+        NewDataType(emulate(x.name), super, parameters, x.abstract, x.mutable, x.isleaftype)
     end
 end
 
-convert(::Type{NewUnion}, x::T) where T<:Union = NewUnion(convert(x.a), convert(x.b))
+emulate(x::T) where T<:Union = NewUnion(emulate(x.a), emulate(x.b))
 
-# convert(::Type{NewTypeVar}, x::TypeVar) = NewTypeVar(x.name, convert(x.lb), convert(x.ub))
+emulate(x::UnionAll) = NewUnionAll(emulate(x.var), emulate(x.body))
 
-convert(::Type{NewUnionAll}, x::UnionAll) = NewUnionAll(convert(x.var), convert(x.body))
+function emulate(x::Module)
+    name = module_name(x)
+    name == :Main && return MainModule
+    parent = emulate(module_parent(x))
+    getconstant!(parent, name) do
+        NewModule(module_name(x), parent)
+    end
+end
 
-function convert(::Type{NewMethod}, x::Method)
-    sig = map(convert, x.sig)
+function emulate(x::Method)
+    sig = emulate(x.sig)
     NewMethod(x.name, x.module, x.file, x.line, sig, x.nargs, x.pure)
 end
 
-function convert(::Type{NewTypeMapEntry}, x::TypeMapEntry)
-    next = convert(x.next)
-    sig = map(convert, x.sig)
-    NewTypeMapEntry(next, sig, convert(x.func), x.isleafsig, x.issimplesig, x.va)
+function emulate(x::TypeMapEntry)
+    next = emulate(x.next)
+    sig = map(emulate, x.sig)
+    NewTypeMapEntry(next, sig, emulate(x.func), x.isleafsig, x.issimplesig, x.va)
 end
 
-function NewMethodTable(::Type{NewMethodTable}, x::MethodTable)
-    defs = convert(x.defs)
+function NewMethodTable(x::MethodTable)
+    defs = emulate(x.defs)
     NewMethodTable(x.name, defs, x.max_args, x.module)
 end
 
-convert(::Type{NewMethodList}, x::MethodList) = NewMethodList(map(convert, x.ms), convert(x.mt))
+emulate(x::MethodList) = NewMethodList(map(emulate, x.ms), emulate(x.mt))
 

@@ -4,18 +4,58 @@
 
 mutable struct NewModule
     name::Symbol
+    parent::Union{NewModule,Void}
     constants::Dict{Any,Any}
 end
 
-NewModule(n::Symbol) = NewModule(n, Dict{Any,Any}())
-
+function NewModule(n::Symbol, parent::Union{NewModule,Void})
+    m = NewModule(n, parent, Dict{Any,Any}())
+    println("NewModule($n, $parent)")
+    parent != nothing && register!(m)
+    m
+end
 
 abstract type NewType end
 struct NewBottomType <: NewType end
 
 struct NewTypeName
     name::Symbol
+    modul::NewModule
 end
+
+NewTypeBounds = Union{NewType,Any}
+mutable struct NewTypeVar
+    name::Symbol
+    lb::NewTypeBounds
+    ub::NewTypeBounds
+end
+NewTypeBounds = Union{NewType,NewTypeVar}
+
+import Base.convert
+
+Base.convert(::Type{NewTypeVar}, name::Symbol) = NewTypeVar(name, NewBottom, NewAny)
+NewTypeVar(name::Symbol, upper::NewType) = NewTypeVar(name, NewBottom, upper)
+
+import Base.<<
+<<(lb::NewType, name::Symbol) = NewTypeVar(name, lb)
+<<(tv::NewTypeVar, ub::NewType) = NewTypeVar(tv.name, tv.ub, ub)
+<<(name::Symbol, ub::NewType) = NewTypeVar(name, ub)
+
+Base.show(io::IO, tv::NewTypeVar) = print(io, string2(tv, string))
+
+function string2(tv::NewTypeVar, sfun::Function)
+    s1 = sfun != string2 && tv.lb != NewBottom ? string(string2(tv.lb, string2), "<:") : ""
+    s2 = string(tv.name)
+    s3 = sfun != string2 && tv.ub != NewAny ? string("<:", string2(tv.ub, string2)) : ""
+    string(s1, s2, s3)
+end
+
+show(io::IO, m::NewModule) = print(io, fullname(m))
+
+fullname(m::NewModule) = m.name == :Main ? string(m.name) : string(beginname(m.parent), m.name)
+beginname(m::NewModule) = m.name == :Main ? "" : string(beginname(m.parent), ".", m.name)
+
+show(io::IO, tn::NewTypeName) = print(io, "New_", tn.name)
 
 mutable struct NewDataType <: NewType
     name::NewTypeName
@@ -35,6 +75,19 @@ struct DataTypeKey
     parameters::Vector
 end
 
+convert(::Type{DataTypeKey}, a::NewDataType) = DataTypeKey(a.name.name, a.parameters)
+
+struct NewUnionAll <: NewType
+    var::NewTypeVar
+    body::NewType
+end
+
+struct NewUnion <: NewType
+    a
+    b
+    NewUnion(a::NewType, b::NewType, ::Bool) = new(a, b)
+end
+
 function Base.hash(d::DataTypeKey, h::UInt)
     h = hash(d.name, h)
     for x in d.parameters
@@ -42,6 +95,13 @@ function Base.hash(d::DataTypeKey, h::UInt)
     end
     h
 end
+import Base.hash
+
+hash(d::NewDataType, h::UInt) = hash(DataTypeKey(d), h)
+hash(a::NewTypeName, h::UInt) = hash(a.name, h)
+hash(a::NewTypeVar, h::UInt) = hash(a.ub, hash(a.lb, hash(a.name)))
+hash(a::NewUnionAll, h::UInt) = hash(a.body, hash(a.var, hash("A")))
+hash(a::NewUnion, h::UInt) = hash(a.b, hash(a.a, hash("U", h)))
 
 import Base.==
 function ==(a::DataTypeKey, b::DataTypeKey)
@@ -52,22 +112,21 @@ function ==(a::DataTypeKey, b::DataTypeKey)
     end
     return true
 end
+==(a::NewDataType, b::NewDataType) = DataTypeKey(a) == DataTypeKey(b)
+==(a::NewTypeName, b::NewTypeName) = a.name == b.name
+==(a::NewTypeVar, b::NewTypeVar) = a.name == b.name && a.ub == b.ub && a.lb == b.lb
+==(a::NewUnionAll, b::NewUnionAll) = a.var == b.var && a.body == b.body
+==(a::NewUnion, b::NewUnion) = a.a == b.a && b.a == b.b
 
-function show(io::IO, dt::Union{NewDataType,DataTypeKey})
+show(io::IO, dt::Union{NewDataType,DataTypeKey}) = print(io, string2(dt, string))
+
+function string2(dt::Union{NewDataType,DataTypeKey}, sfun::Function)
     if isempty(dt.parameters)
-        print(io, dt.name)
+        sfun(dt.name)
     else
-        plist = mkstring(map(string2, dt.parameters))
-        print(io, dt.name, "{", plist, "}")
+        plist = mkstring(map(sfun, dt.parameters))
+        string(dt.name, "{", plist, "}")
     end
-end
-
-show(io::IO, tn::NewTypeName) = print(io, "New_", tn.name)
-
-struct NewUnion <: NewType
-    a
-    b
-    NewUnion(a::NewType, b::NewType, ::Bool) = new(a, b)
 end
 
 _NewUnion(a::NewType, b::NewType) = NewUnion(a, b, true)
@@ -83,47 +142,14 @@ show(io::IO, x::NewUnion) = print(io, "Union{", x.a, showtail(x.b), "}")
 showtail(x::Any) = string(", ", x)
 showtail(x::NewUnion) = string( ", ", x.a, showtail(x.b))
 
-mutable struct NewTypeVar
-    name::Symbol
-    lb::NewType
-    ub::NewType
-end
-Base.convert(::Type{NewTypeVar}, name::Symbol) = NewTypeVar(name, NewBottom, NewAny)
-NewTypeVar(name::Symbol, upper::NewType) = NewTypeVar(name, NewBottom, upper)
-
 string2(x::Any) = string(x)
 string2(x::NewTypeVar) = string(x.name)
 
-import Base.<<
-<<(lb::NewType, name::Symbol) = NewTypeVar(name, lb)
-<<(tv::NewTypeVar, ub::NewType) = NewTypeVar(tv.name, tv.ub, ub)
-<<(name::Symbol, ub::NewType) = NewTypeVar(name, ub)
-
-function Base.show(io::IO, tv::NewTypeVar)
-    if tv.lb != NewBottom
-        print(io, string(tv.lb), "<:")
-    end
-    print(io, tv.name)
-    if tv.ub != NewAny
-        print(io, "<:", string(tv.ub))
-    end
+show(io::IO, u::NewUnionAll) = print(io, string2(u, string2))
+function string2(u::NewUnionAll, sfun::Function)
+    string(string2(u.body, sfun), " where ", u.var)
 end
 
-struct NewUnionAll <: NewType
-    var::TypeVar
-    body::NewType
-end
-
-function show(io::IO, u::NewUnionAll)
-    tl, ty = tlist(u)
-    print(io, ty, " where {", mkstring(tl), "}")
-end
-
-function tlist(u::NewUnionAll)
-    tl, ty = tlist(u.body)
-    [u.var; tl], ty
-end
-tlist(u::NewType) = TypeVar[], u
 mkstring(itr) = isempty(itr) ? "" : mapreduce(string, (a,b)->a*","*b, itr)
 
 #struct Void
@@ -211,9 +237,9 @@ Create a representative for a new type - corresponds to
     `abstract type name{params} <: parent end`
 """
 function NewType(name::Symbol, abstr::Bool, mutable::Bool, typeparams::Symbol, parent::Any)
-    NewType(name, abstr, mutable, (TypeVar(typeparams),), parent)
+    NewType(name, abstr, mutable, (NewTypeVar(typeparams),), parent)
 end
-function NewType(name::Symbol, abstr::Bool, mutable::Bool, typeparams::TypeVar, parent::Any)
+function NewType(name::Symbol, abstr::Bool, mutable::Bool, typeparams::NewTypeVar, parent::Any)
     NewType(name, abstr, mutable, (typeparams,), parent)
 end
 function NewType(name::Symbol, abstr::Bool, mutable::Bool, typeparams, parent::Any)
@@ -224,7 +250,7 @@ function NewType(name::Symbol, abstr::Bool, mutable::Bool, typeparams, parent::A
     isleaftype = !abstr && length(typeparams) == 0
     dt = NewDataType(name, super, parameters, types, abstr, mutable, isleaftype)
     for t in reverse(typeparams)
-        tt = isa(t, Symbol) ? TypeVar(t) : t
+        tt = isa(t, Symbol) ? NewTypeVar(t) : t
         dt = NewUnionAll(tt, dt)
     end
     dt
@@ -240,8 +266,8 @@ function NewMethod(name::Symbol, arglist::Tuple)m =
     NewMethod(name, modul, file, line, sig, length(arglist) + 1, false) 
 end
 
-supertypes(ty::NewDataType) = ty.super
-supertypes(ty::NewUnionAll) = [NewAny]
+supertypes(ty::NewDataType) = ty.super == nothing ? NewType[] : ty.super
+supertypes(ty::NewUnionAll) = supertypes(ty.body)
 
 isnewsubtype(a::NewUnionAll, b::NewDataType) = b == NewAny || isnewsubtype(a.body, b)
 isnewsubtype(a::NewUnionAll, b::NewUnionAll) = a == b || isnewsubtype(a.body, b)
@@ -256,37 +282,43 @@ mutable struct NewGlobal
     modules::Dict{Symbol,NewModule}
 end
 
-current_name() = module_name(@__MODULE__)
+current_modul() = _current_module
 
 register!(x) = register!(current_name(), x)
 
-function gettype!(f::Function, s::DataTypeKey)
-    m = ensure_module(current_name())
+function getconstant!(f::Function, m::NewModule, s::Union{DataTypeKey,Symbol})
     get(m.constants, s) do
         f()
     end
 end
 
-ensure_module(mname::Symbol) = get!(GlobalModules.modules, mname) do ; NewModule(mname) end
-
-function register!(mname::Symbol, x)
-    m = ensure_module(mname)
-    register!(m, x)
+function register!(m::NewModule)
+    parent = m.parent == nothing ? current_modul() : m.parent
+    s = m.name
+    if haskey(parent.constants, s)
+        error("invalid redefinition of module $s in module $(parent.name)")
+    end
+    parent.constants[s] = m
 end
 
-function register!(m::NewModule, dt::NewDataType)
+function register!(dt::NewDataType)
+    m = dt.name.modul
     s = DataTypeKey(dt.name.name, dt.parameters)
-    haskey(m.constants, s) && error("invalid redefinition of constant $s")
+    if haskey(m.constants, s)
+        error("invalid redefinition of constant $s in module $(m.name)")
+    end
     m.constants[s] = dt
 end
 
 # global constants
 
-global const GlobalModules = NewGlobal(Dict{Symbol,NewModule}())
+global const MainModule = NewModule(:Main, nothing)
+global _current_module = MainModule
+const CoreModule = NewModule(:Core, MainModule)
 
 const NewEmpty = NewDataType[]
 const NewBottom = NewBottomType()
-const NewAny = NewDataType(NewTypeName(:Any), nothing, NewEmpty, true, false, false)
-const NewFunction = NewDataType(NewTypeName(:Function), [NewAny], NewEmpty, true, false, false)
+const NewAny = NewDataType(NewTypeName(:Any, CoreModule), nothing, NewEmpty, true, false, false)
+const NewFunction = NewDataType(NewTypeName(:Function, CoreModule), [NewAny], NewEmpty, true, false, false)
 
 
