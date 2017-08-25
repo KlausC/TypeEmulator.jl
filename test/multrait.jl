@@ -1,4 +1,17 @@
 
+# test implementation
+struct NewTrait<:NewType
+    name::Symbol
+    super::Any
+end
+Base.show(io::IO, x::NewTrait) = print(io, x.name)
+JuliaTypeEmulator.supertypes(x::NewTrait) = x.super
+JuliaTypeEmulator.is_pushed(::Type{NewTrait}) = true
+isnewsub(a::NewTrait, b::NewTrait) = a != b && b ∈ linearize(a)
+
+
+# Test
+
 Anny = NewTrait(:Any, NewTrait[])
 
 Animal = NewTrait(:Animal, [Anny])
@@ -8,10 +21,10 @@ TwoLegged = NewTrait(:TwoLegged, [HasLegs])
 Furry = NewTrait(:Furry, [Animal])
 Cat = NewTrait(:Cat, [Animal, FourLegged, Furry])
 
-@test linearise(Anny) == [Anny]
-@test linearise(Animal) == reverse([Animal, Anny])
-@test linearise(FourLegged) == reverse([FourLegged, HasLegs, Animal, Anny])
-@test linearise(Cat) == reverse([Cat, Furry, FourLegged, HasLegs, Animal, Anny])
+@test linearize(Anny) == [Anny]
+@test linearize(Animal) == reverse([Animal, Anny])
+@test linearize(FourLegged) == reverse([FourLegged, HasLegs, Animal, Anny])
+@test linearize(Cat) == reverse([Cat, Furry, FourLegged, HasLegs, Animal, Anny])
 
 @test isnewsub(Cat, Animal)
 @test isnewsub(Cat, HasLegs)

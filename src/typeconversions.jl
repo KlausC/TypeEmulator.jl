@@ -36,19 +36,17 @@ function emulate(x::Module)
 end
 
 function emulate(x::Method)
-    sig = emulate(x.sig)
-    NewMethod(x.name, x.module, x.file, x.line, sig, x.nargs, x.pure)
+    NewMethod(x.name, emulate(x.module), x.file, x.line, emulate(x.sig), x.nargs, x.pure)
 end
 
 function emulate(x::TypeMapEntry)
     next = emulate(x.next)
-    sig = map(emulate, x.sig)
+    sig = emulate, x.sig
     NewTypeMapEntry(next, sig, emulate(x.func), x.isleafsig, x.issimplesig, x.va)
 end
 
-function NewMethodTable(x::MethodTable)
-    defs = emulate(x.defs)
-    NewMethodTable(x.name, defs, x.max_args, x.module)
+function emulate(x::MethodTable)
+    NewMethodTable(x.name, emulate(x.defs), x.max_args, emulate(x.module))
 end
 
 emulate(x::MethodList) = NewMethodList(map(emulate, x.ms), emulate(x.mt))

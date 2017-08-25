@@ -14,22 +14,25 @@ function _linearize(list::Vector{NewType}, x::NewType)
         for y in supertypes(x)
             _linearize(list, y)
         end
-        push_new!(list, x)
+        push_new!(list, x, is_pushed(typeof(x)))
     end
     list
 end
 
 export linearize
 
-function push_new!(x::Vector{NewType}, y::NewDataType)
-    if y ∉ x && y != x
+is_pushed(::Type) = false
+is_pushed(::Type{NewDataType}) = true
+is_pushed(::Type{NewUnionAll}) = true
+
+function push_new!(x::Vector{NewType}, y::NewType, doit::Bool)
+    if doit && y ∉ x && y != x
         push!(x, y)
     end
     x
 end
 
-push_new!(x::Vector{NewType}, y::NewUnionAll) = push_new!(x, y.body)
-push_new!(x::Vector{NewType}, y::NewType) = x
+push_new!(x::Vector{NewType}, y::NewUnionAll, doit::Bool) = push_new!(x, y.body, doit)
 
 function linearize(x::Type)
     _linearize(Type[], x)

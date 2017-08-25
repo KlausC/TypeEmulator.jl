@@ -2,37 +2,9 @@
 # mimic some internal definitions of julia which are implemented in C
 # the commented definitions are re-used
 
-mutable struct NewModule
-    name::Symbol
-    parent::Union{NewModule,Void}
-    constants::Dict{Any,Any}
-end
-
-function NewModule(n::Symbol, parent::Union{NewModule,Void})
-    m = NewModule(n, parent, Dict{Any,Any}())
-    println("NewModule($n, $parent)")
-    parent != nothing && register!(m)
-    m
-end
-
-abstract type NewType end
-struct NewBottomType <: NewType end
-
-struct NewTypeName
-    name::Symbol
-    modul::NewModule
-end
-
-NewTypeBounds = Union{NewType,Any}
-mutable struct NewTypeVar
-    name::Symbol
-    lb::NewTypeBounds
-    ub::NewTypeBounds
-end
-NewTypeBounds = Union{NewType,NewTypeVar}
+NewModule(n::Symbol, p::Union{Void,NewModule}) = NewModule(n, p, Dict())
 
 import Base.convert
-
 Base.convert(::Type{NewTypeVar}, name::Symbol) = NewTypeVar(name, NewBottom, NewAny)
 NewTypeVar(name::Symbol, upper::NewType) = NewTypeVar(name, NewBottom, upper)
 
@@ -50,43 +22,20 @@ function string2(tv::NewTypeVar, sfun::Function)
     string(s1, s2, s3)
 end
 
-show(io::IO, m::NewModule) = print(io, fullname(m))
+show(io::IO, m::NewModule) = print(io, mname(m))
 
-fullname(m::NewModule) = m.name == :Main ? string(m.name) : string(beginname(m.parent), m.name)
-beginname(m::NewModule) = m.name == :Main ? "" : string(beginname(m.parent), ".", m.name)
+mname(m::NewModule) = begin f = fullname(m); isempty(f) ? "Main" : join(f, '.') end
+
+function Base.fullname(m::NewModule)
+    m.name == :Main && return ()
+    m.parent == :Main && return (m.name,)
+    m.parent == m && return (m.name,)
+    tuple(fullname(m.parent)..., m.name)
+end
 
 show(io::IO, tn::NewTypeName) = print(io, "New_", tn.name)
 
-mutable struct NewDataType <: NewType
-    name::NewTypeName
-    super::Any # NewType
-    parameters::Vector
-    abstr::Bool
-    mutable::Bool
-    isleaftype::Bool
-    function NewDataType(name, super, parameters, abstr, mutable, isleaftype)
-        dt = new(name, super, parameters, abstr, mutable, isleaftype)
-        register!(dt)
-    end
-end
-
-struct DataTypeKey
-    name::Symbol
-    parameters::Vector
-end
-
 convert(::Type{DataTypeKey}, a::NewDataType) = DataTypeKey(a.name.name, a.parameters)
-
-struct NewUnionAll <: NewType
-    var::NewTypeVar
-    body::NewType
-end
-
-struct NewUnion <: NewType
-    a
-    b
-    NewUnion(a::NewType, b::NewType, ::Bool) = new(a, b)
-end
 
 function Base.hash(d::DataTypeKey, h::UInt)
     h = hash(d.name, h)
@@ -124,7 +73,7 @@ function string2(dt::Union{NewDataType,DataTypeKey}, sfun::Function)
     if isempty(dt.parameters)
         sfun(dt.name)
     else
-        plist = mkstring(map(sfun, dt.parameters))
+        plist = join(map(sfun, dt.parameters), ',')
         string(dt.name, "{", plist, "}")
     end
 end
@@ -135,70 +84,33 @@ _NewUnion(t::NewType) = t
 _NewUnion(t::NewType, u::NewType, v::NewType, ts::NewType...) = _NewUnion(t, _NewUnion(u, v, ts...))
 NewUnion(ts::NewType...) = _NewUnion(unique(ts)...)
 
-show(io::IO, ::NewBottomType) = print(io, "Union{}")
+show(io::IO, ::NewBottomType) = print(io, "NewUnion{}")
 
-show(io::IO, x::NewUnion) = print(io, "Union{", x.a, showtail(x.b), "}")
+show(io::IO, x::NewUnion) = print(io, string2(x, string))
+string2(x::NewUnion, sfun::Function) = string("NewUnion{", x.a, showtail(x.b, sfun), "}")
 
-showtail(x::Any) = string(", ", x)
-showtail(x::NewUnion) = string( ", ", x.a, showtail(x.b))
+showtail(x::Any, sfun::Function) = string(", ", sfun(x))
+showtail(x::NewUnion, sfun::Function) = string( ", ", x.a, showtail(x.b, sfun))
 
 string2(x::Any) = string(x)
 string2(x::NewTypeVar) = string(x.name)
 
 show(io::IO, u::NewUnionAll) = print(io, string2(u, string2))
-function string2(u::NewUnionAll, sfun::Function)
-    string(string2(u.body, sfun), " where ", u.var)
+string2(u::NewUnionAll, sfun::Function) = string3(u, sfun, string2)
+function string3(u::NewUnionAll, sfun::Function, sfunbody::Function)
+    string(sfunbody(u.body, sfun), " where ", u.var)
 end
 
-mkstring(itr) = isempty(itr) ? "" : mapreduce(string, (a,b)->a*","*b, itr)
+Base.show(io::IO, m::NewMethod) = print(io, string2(m, string))
 
-#struct Void
-#end
-#const nothing = Void()
-
-#abstract type AbstractArray{T,N} end
-#abstract type DenseArray{T,N} <: AbstractArray{T,N} end
-
-#mutable struct Array{T,N} <: DenseArray{T,N}
-#end
-
-mutable struct NewMethod
-    name::Symbol
-    modul::NewModule
-    file::Symbol
-    line::Int32
-    sig::Tuple
-    nargs::Int32
-    pure::Bool
+function string2(m::NewMethod, sfun::Function)
+    s = isa(m.sig, NewUnionAll) ? string3(m.sig, string2, argbody) : argbody(m.sig, sfun)
+    string(m.name, s, " in ", m.modul, " at ", m.file, ":", m.line)
 end
 
-function Base.show(io::IO, m::NewMethod)
-    argt = mapreduce(x->", ::" * string(x), *, "", m.sig[2:end])
-    print(io, m.name, "(", argt[3:end], ") in ", m.modul)
-end
-
-#mutable struct NewMethodInstance
-#end
-
-mutable struct NewTypeMapEntry
-    next::Union{NewTypeMapEntry, Void}
-    sig::Tuple
-    func::NewMethod
-    isleafsig::Bool
-    issimplesig::Bool
-    va::Bool
-end
-
-mutable struct NewMethodTable
-    name::Symbol
-    defs::Union{NewTypeMapEntry,Void}
-    max_args::Int64
-    modul::Module
-end
-
-mutable struct NewMethodList
-    ms::Array{NewMethod,1}
-    mt::NewMethodTable
+function argbody(dt::NewDataType, sfun::Function)
+   argt = mapreduce(x->", ::" * string2(x, sfun), *, "", dt.parameters[2:end])
+   string("(", argt[3:end], ")")
 end
 
 function NewMethodList(modul::Module, name::Symbol)
@@ -256,8 +168,7 @@ function NewType(name::Symbol, abstr::Bool, mutable::Bool, typeparams, parent::A
     dt
 end
 
-function NewMethod(name::Symbol, arglist::Tuple)m =
-
+function NewMethod(name::Symbol, arglist::Tuple)
     fun = NewDataType(NewTypeName(Symbol('#', name)), NewFunction, NewEmpty, NewEmpty, false, false, true)
     sig = (fun, arglist...)
     modul = current_module()
@@ -278,11 +189,11 @@ isnewsubtype(::Void, ::NewType) = false
 isnewsubtype(::NewType, ::NewBottomType) = false
 isnewsubtype(::NewBottomType, ::NewType) = true
 
-mutable struct NewGlobal
-    modules::Dict{Symbol,NewModule}
-end
+
+# Module simulation - registration
 
 current_modul() = _current_module
+set_module(m::NewModule) = _current_module = m
 
 register!(x) = register!(current_name(), x)
 
@@ -310,9 +221,9 @@ function register!(dt::NewDataType)
     m.constants[s] = dt
 end
 
-# global constants
+# global modules and constants
 
-global const MainModule = NewModule(:Main, nothing)
+const MainModule = NewModule(:Main, nothing)
 global _current_module = MainModule
 const CoreModule = NewModule(:Core, MainModule)
 
