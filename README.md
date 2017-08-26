@@ -6,4 +6,11 @@
 
 **TypeEmulator**
 
+For educational purposes to obtain some insight to the Julia type system and the methods dispatching mechanisms.
+
+The existing API can tranform all Julia Types into a meta-representation. On the meta-representation several methods of Julia have been emulated.
+
+emulating | original
+
+`isnewsubsys` | `issubtype`, <:`
 
