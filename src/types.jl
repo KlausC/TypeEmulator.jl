@@ -180,16 +180,6 @@ end
 supertypes(ty::NewDataType) = ty.super == nothing ? NewType[] : ty.super
 supertypes(ty::NewUnionAll) = supertypes(ty.body)
 
-isnewsubtype(a::NewUnionAll, b::NewDataType) = b == NewAny || isnewsubtype(a.body, b)
-isnewsubtype(a::NewUnionAll, b::NewUnionAll) = a == b || isnewsubtype(a.body, b)
-isnewsubtype(a::NewDataType, b::NewUnionAll) = false
-isnewsubtype(a::NewDataType, b::NewDataType) = b == NewAny || a == b || (a.super != nothing && any(p->isnewsubtype(p, b), a.super))
-isnewsubtype(a::NewType, b::NewType) = a == b
-isnewsubtype(::Void, ::NewType) = false
-isnewsubtype(::NewType, ::NewBottomType) = false
-isnewsubtype(::NewBottomType, ::NewType) = true
-
-
 # Module simulation - registration
 
 current_modul() = _current_module

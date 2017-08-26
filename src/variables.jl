@@ -10,8 +10,8 @@ FreeVariables() = FreeVariables(Dict{Symbol,Any}())
 
 Add a new type variable to stack. The variable has no value (is unbound).
 """
-function Base.push!(fv::FreeVariables, s::Symbol)
-    a = get!(fv.d, s) do
+function Base.push!(env::FreeVariables, s::Symbol)
+    a = get!(env.d, s) do
         []
     end
     push!(a, nothing)
@@ -23,27 +23,27 @@ end
 
 Remove variable from stack of free variables.
 """
-function Base.pop!(fv::FreeVariables, s::Symbol)
-    a = getindex(fv.d, s)
+function Base.pop!(env::FreeVariables, s::Symbol)
+    a = getindex(env.d, s)
     ae = pop!(a)
     if isempty(a)
-        delete!(fv.d, s)
+        delete!(env.d, s)
     end
     ae
 end
 
-function getbinding(fv::FreeVariables, s::Symbol)
-    a = getindex(fv.d, s)
+function getbinding(env::FreeVariables, s::Symbol)
+    a = getindex(env.d, s)
     a[end]
 end
 
-function bind!(fv::FreeVariables, s::Symbol, t::Union{Symbol, NewTypeWithVar})
-    a = getindex(fv.d, s)
+function bind!(env::FreeVariables, s::Symbol, t::Any)
+    a = getindex(env.d, s)
     a[end] = t
 end
 
 """
-    `testbinding!(fv::FreeVariables, s::Symbol, t::newSymbol)`
+    `testbinding!(env::FreeVariables, s::Symbol, t::newSymbol)`
 
 If symbol is unbound, establish binding with new `Symbol`.
 If symbol is bound to other `Symbol`, verify the new binding is identical.
@@ -52,15 +52,29 @@ If symbol is bound to value, verify the values are identical.
 
 usage:
 ```
-    testbinding(fv, :T, parameter) || return false
+    testbinding(env, :T, parameter) || return false
 ```
 """
-function testbinding!(fv::FreeVariables, s::Symbol, t::Symbol)
-    a = getindex(fv.d, s)
+function testbinding!(f::Function, env::FreeVariables, s::Symbol, t::NewType)
+    # println("testbinding-type $s $t")
+    # map(println, stacktrace())
+    a = getindex(env.d, s)
     ae = a[end]
-    if ae == nothing
+    r = if ae == nothing
         a[end] = t
-        true
+        f()
+    else
+        issubenv(t, ae, env)
+    end
+end
+
+function testbinding!(f::Function, env::FreeVariables, s::Symbol, t::Any)
+    # println("testbinding-any $env $s $t")
+    a = getindex(env.d, s)
+    ae = a[end]
+    r = if ae == nothing
+        a[end] = t
+        f()
     else
         ae == t
     end
