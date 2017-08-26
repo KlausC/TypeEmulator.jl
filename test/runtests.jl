@@ -1,4 +1,4 @@
-using JuliaTypeEmulator
+using TypeEmulator
 using Base.Test
 
 @testset "metadata"     begin include("metadata.jl") end

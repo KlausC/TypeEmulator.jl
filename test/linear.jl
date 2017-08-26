@@ -5,8 +5,8 @@ struct NewTrait<:NewType
     super::Any
 end
 Base.show(io::IO, x::NewTrait) = print(io, x.name)
-JuliaTypeEmulator.supertypes(x::NewTrait) = x.super
-JuliaTypeEmulator.is_pushed(::Type{NewTrait}) = true
+TypeEmulator.supertypes(x::NewTrait) = x.super
+TypeEmulator.is_pushed(::Type{NewTrait}) = true
 isnewsub(a::NewTrait, b::NewTrait) = a != b && b ∈ linearize(a)
 
 

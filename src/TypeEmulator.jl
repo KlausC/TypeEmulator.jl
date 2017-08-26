@@ -1,4 +1,4 @@
-module JuliaTypeEmulator
+module TypeEmulator
 
 export
     emulate, MainModule, CoreModule, NewEmpty, 
