@@ -8,9 +8,29 @@
 
 For educational purposes to obtain some insight to the Julia type system and the methods dispatching mechanisms.
 
-The existing API can tranform all Julia Types into a meta-representation. On the meta-representation several methods of Julia have been emulated.
+ The method `emulate`can transform all Julia `Type`, `Tuple`, `Union`, `UnionAll, and `method lists and required components into a meta-representation. On the meta-representation several methods of Julia are implemented.
+ 
+- subtype relation 
+  - <:
+  - typeintersect
+- method dispatching
 
-emulating | original
---------------------
-`isnewsubsys` | `issubtype`, `<:`
+Extensive tests verify, that the results in the meta space coincide with the current Julia behaviour.
+
+Speculative extensions of Julia may be included and sandboxed in the future.
+- multiple inheritance
+- type extensions
+- traits
+- interfaces / protocols
+
+The meta-objects can be modified in order to extend the
+
+Usage example:
+
+```
+  using TypeEmulator
+  
+  isnewsubtype(emulate(Int), emulate(Integer))
+  isnewsubtypes(emulate(Tuple{Array{T,1} where T<:Number}, emulate(Tuple{Vector})) 
+
 
