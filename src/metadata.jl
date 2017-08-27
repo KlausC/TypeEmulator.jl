@@ -89,6 +89,6 @@ mutable struct NewMethodList
 end
 
 struct FreeVariables
-    d::Dict{Symbol,Any} # Array{Union{Void,Symbol,NewType,Bitstype}}
+    d::Dict{NewTypeVar,Any} # Array{Union{Void,NewTypeVar,NewType,Bitstype}}
 end
 

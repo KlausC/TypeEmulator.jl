@@ -111,35 +111,29 @@ isinvar(a::NewTypeVar, b::NewType, env::FV) = false
 # if the second argument is a type variable, the first argument is bound to it
 # if it is already bound to another value false is returned
 # additionally the lower and upper bounds are verified
-function isinvar(a, b::NewTypeVar, env::FV)
-    testbinding!(env, b.name, a) do
-        true
-    end
-end
-function isinvar(a::NewType, b::NewTypeVar, env::FV)
-    testbinding!(env, b.name, a) do
-        nenv = deepcopy(env)
-        iscovar(b.lb, a, env) &&
-        iscovar(a, b.ub, nenv)
-    end
-end
-
-function isinvar(a::NewTypeVar, b::NewTypeVar, env::FV)
-    testbinding!(env, b.name, a.name) do
-        # nenv = deepcopy(env)
-        iscovar(b.lb, a.lb, env) &&
-        iscovar(a.ub, b.ub, env)
-    end
-end    
-
+isinvar(a, b::NewTypeVar, env::FV) = testbinding!(env, b, a)
+isinvar(a::NewTypeVar, b::NewTypeVar, env::FV) = testbinding!(env, b, a)
 
 # utility functions
 
 function withvariable(f::Function, a, b::NewUnionAll, env::FV)
-    push!(env, b.var.name)
-    r = f(a, b.body, env)
-    pop!(env, b.var.name)
+    push!(env, b.var)
+    r = f(a, b.body, env) && checkbounds(binding(env, b.var), b.var, env)
+    pop!(env, b.var)
     r
+end
+
+checkbounds(a, b, env::FV) = issubenv(a, b, env)
+checkbounds(::Void, v::NewTypeVar, env::FV) = throw(UndefVarError(v.name))
+checkbounds(a::Any, v::NewTypeVar, env::FV) = a == binding(env, v)
+function checkbounds(a::NewType, v::NewTypeVar, env::FV)
+    checkbounds(v.lb, a, FV()) &&
+    checkbounds(a, v.ub, env)
+end
+
+function checkbounds(a::NewTypeVar, b::NewTypeVar, env::FV)
+    checkbounds(a.ub, b.ub, env) &&
+    checkbounds(b.lb, a.lb, FV())
 end
 
 equaltypes(a, b, env::FV) = a == b

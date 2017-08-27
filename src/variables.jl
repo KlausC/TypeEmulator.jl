@@ -10,7 +10,7 @@ FreeVariables() = FreeVariables(Dict{Symbol,Any}())
 
 Add a new type variable to stack. The variable has no value (is unbound).
 """
-function Base.push!(env::FreeVariables, s::Symbol)
+function Base.push!(env::FreeVariables, s::NewTypeVar)
     a = get!(env.d, s) do
         []
     end
@@ -23,7 +23,7 @@ end
 
 Remove variable from stack of free variables.
 """
-function Base.pop!(env::FreeVariables, s::Symbol)
+function Base.pop!(env::FreeVariables, s::NewTypeVar)
     a = getindex(env.d, s)
     ae = pop!(a)
     if isempty(a)
@@ -32,12 +32,12 @@ function Base.pop!(env::FreeVariables, s::Symbol)
     ae
 end
 
-function getbinding(env::FreeVariables, s::Symbol)
+function binding(env::FreeVariables, s::NewTypeVar)
     a = getindex(env.d, s)
     a[end]
 end
 
-function bind!(env::FreeVariables, s::Symbol, t::Any)
+function bind!(env::FreeVariables, s::NewTypeVar, t::Any)
     a = getindex(env.d, s)
     a[end] = t
 end
@@ -55,26 +55,26 @@ usage:
     testbinding(env, :T, parameter) || return false
 ```
 """
-function testbinding!(f::Function, env::FreeVariables, s::Symbol, t::NewType)
+function testbinding!(env::FreeVariables, s::NewTypeVar, t::NewType)
     # println("testbinding-type $s $t")
     # map(println, stacktrace())
     a = getindex(env.d, s)
     ae = a[end]
     r = if ae == nothing
         a[end] = t
-        f()
+        true
     else
         issubenv(t, ae, env)
     end
 end
 
-function testbinding!(f::Function, env::FreeVariables, s::Symbol, t::Any)
+function testbinding!(env::FreeVariables, s::NewTypeVar, t::Any)
     # println("testbinding-any $env $s $t")
     a = getindex(env.d, s)
     ae = a[end]
     r = if ae == nothing
         a[end] = t
-        f()
+        true
     else
         ae == t
     end
@@ -84,6 +84,7 @@ end
     `freevariables(a) -> Vector{Symbol}`
 
 Return list of free variables in a type expression.
+obsolete
 """
 freevariables(a) = Symbol[]
 function freevariables(a::NewUnionAll)

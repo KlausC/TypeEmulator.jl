@@ -8,8 +8,6 @@ const issub = isnewsubtype
 
 typelist = (Int8, Int16, Int, Signed, UInt32, Unsigned, Integer, Rational, Real, Number, BigInt, BigFloat, Complex128, Complex, Irrational)
 for s in typelist, t in typelist
-    r = issub(em(s), em(t)) == (s <: t)
-    r || println(STDERR, "(", s, ") <: (", t, ") ", (s<:t))
     @test issub(em(s), em(t)) == (s <: t)
 end
 
