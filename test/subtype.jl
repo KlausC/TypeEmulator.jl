@@ -449,7 +449,7 @@ function test_Type()
     @test isanew(Int, @UnionAll T<:Number Type{T})
     @test !isanew(DataType, @UnionAll T<:Number Type{T})
 
-    @test !issub(DataType, (@UnionAll T<:Type Type{T}))
+    @test issub(DataType, (@UnionAll T<:Type Type{T})) == (DataType <: (Type{T} where T<:Type))
     @test isanew(DataType, (@UnionAll T<:Type Type{T}))
 
     @test isanew(Tuple{},Type{Tuple{}})
