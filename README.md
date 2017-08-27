@@ -8,7 +8,7 @@
 
 For educational purposes to obtain some insight to the Julia type system and the methods dispatching mechanisms.
 
- The method `emulate`can transform all Julia `Type`, `Tuple`, `Union`, `UnionAll, and `method lists and required components into a meta-representation. On the meta-representation several methods of Julia are implemented.
+ The method `emulate`can transform all Julia `Type`, `Tuple`, `Union`, `UnionAll`, and method lists and required components into a meta-representation. On the meta-representation several methods of Julia are implemented.
  
 - subtype relation 
   - <:
@@ -17,20 +17,28 @@ For educational purposes to obtain some insight to the Julia type system and the
 
 Extensive tests verify, that the results in the meta space coincide with the current Julia behaviour.
 
-Speculative extensions of Julia may be included and sandboxed in the future.
+Speculative extensions of Julia may be included in the future.
 - multiple inheritance
 - type extensions
 - traits
 - interfaces / protocols
+- method invokation delegation
 
-The meta-objects can be modified in order to extend the
+For this purpose, the meta-objects can be modified to simulate the speculative extensions in a sandbox.
+It is currently not planned to emulate object instanciation and related peculiarities.
 
 Usage example:
 
 ```
   using TypeEmulator
   
-  isnewsubtype(emulate(Int), emulate(Integer))
-  isnewsubtypes(emulate(Tuple{Array{T,1} where T<:Number}, emulate(Tuple{Vector})) 
+  isnewsubtype(emulate(Int), emulate(Integer))  ===  Int <: Integer
+  
+  A = Tuple{Array{T,1} where T<:Number}
+  B = Tuple{Vector}
+  isnewsubtypes(emulate(A), emulate(B)) === A <: B
+  
+  ml = emulate(methods(exp))
+  ml.ms[1].sig
 
 
