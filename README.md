@@ -40,5 +40,7 @@ Usage example:
   
   ml = emulate(methods(exp))
   ml.ms[1].sig
+```
 
+WORK IN PROGRESS !!!
 

@@ -57,4 +57,15 @@ for s in typelist, t in typelist
     end
 end
 
+typelist = (Union{Int8,Int32}, Union{Int8, Int32, Int16})
+for s in typelist, t in typelist
+    r = issub(em(s), em(t)) == (s <: t)
+    r || println(STDERR, "(", s, ") <: (", t, ") ", (s<:t))
+    if r
+        @test issub(em(s), em(t)) == (s <: t)
+    else
+        @test_broken issub(em(s), em(t)) == (s <: t)
+    end
+end
+
 

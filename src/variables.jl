@@ -15,7 +15,7 @@ function Base.push!(env::FreeVariables, s::NewTypeVar)
         []
     end
     push!(a, nothing)
-    a
+    env
 end
 
 """

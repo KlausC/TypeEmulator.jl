@@ -11,15 +11,17 @@ isnewsubtype(a::Type, b::Type) = (a <: b)
 
 Test if type a is subtype of type b with the given variables and their bindings.
 """
-issubenv(a::NewType, b::NewUnion, env::FV) = issubenv(a, b.a, env) || issubenv(a, b.b, env)
 issubenv(::NewBottomType, b::NewType, env::FV) = true
+issubenv(a::NewType, b::NewUnion, env::FV) = issubenv(a, b.a, env) || issubenv(a, b.b, env)
+issubenv(a::NewUnion, b::NewType, env::FV) = issubenv(a.a, b, env) && issubenv(a.b, b, env)
+issubenv(a::NewUnion, b::NewUnion, env::FV) = issubenv(a.a, b, env) && issubenv(a.b, b, env)
 
 # is any of the "supertypes" of `a` a direct subtype of `b`?
 issubenv(a::NewType, b::NewType, env::FV) = any(isdirect1(st, b, env) for st in linearize(a))
 
 # perform trivial checks before calling specialized functions
 function isdirect1(a::NewType, b::NewType, env::FV)
-    equaltypes(a, b, env) || b == NewAny || isdirect(a, b, env)
+    a === b || b == NewAny || isdirect(a, b, env)
 end
 
 # maintain stack of free variables and delegate to body
@@ -56,6 +58,7 @@ function walktuple(a::NewDataType, b::NewDataType, env::FV, func::Function)
     if isavararg(tbb)
         vtb = tbb.parameters[1]
         vlb = tbb.parameters[2]
+        absorbb = 0
         if isavararg(tba)
             nc = min(na, nb)
             all(func(pa[k], pb[k], env) for k = 1:nc-1) || return false
@@ -66,16 +69,18 @@ function walktuple(a::NewDataType, b::NewDataType, env::FV, func::Function)
                     na + vla == nb + vlb || return false
                     vla == 0 || vlb == 0 || func(vta, vtb, env) || return false
                 else
-                    na + vla <= nb || return false
+                    na + vla >= nb || return false
                     vla == 0 || func(vta, vtb, env) || return false
+                    testbinding!(env, vlb, na - nb + vla)
                 end
             else
                 if isa(vlb, Integer)
-                    na >= nb + vlb || return false
-                    vlb == 0 || func(vta, vtb, env) || return false
+                    return false
                 else
                     na >= nb || return false
                     func(vta, vtb, env) || return false
+         #TODO: bind type variable vlb to vla + constant!!!
+                    testbinding!(env, vlb, vla) # + (nb - na)
                 end
             end
             all(func(vta, pb[k], env) for k = nc:nb-1) &&
@@ -86,7 +91,8 @@ function walktuple(a::NewDataType, b::NewDataType, env::FV, func::Function)
             if isa(vlb, Integer)
                 nb - 1 + vlb == na || return false
             end
-            all(func(pa[k], vtb, env) for k = nb:na)
+            all(func(pa[k], vtb, env) for k = nb:na) &&
+            testbinding!(env, vlb, na - nb + 1)
         end
     else
         !isavararg(tba) && na == nb && all(func(pa[k], pb[k], env) for k=1:nb)
@@ -110,7 +116,6 @@ isinvar(a::NewTypeVar, b::NewType, env::FV) = false
 
 # if the second argument is a type variable, the first argument is bound to it
 # if it is already bound to another value false is returned
-# additionally the lower and upper bounds are verified
 isinvar(a, b::NewTypeVar, env::FV) = testbinding!(env, b, a)
 isinvar(a::NewTypeVar, b::NewTypeVar, env::FV) = testbinding!(env, b, a)
 

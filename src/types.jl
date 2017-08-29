@@ -48,8 +48,8 @@ import Base.hash
 
 hash(d::NewDataType, h::UInt) = hash(DataTypeKey(d), h)
 hash(a::NewTypeName, h::UInt) = hash(a.name, h)
-hash(a::NewTypeVar, h::UInt) = hash(a.ub, hash(a.lb, hash(a.name)))
-hash(a::NewUnionAll, h::UInt) = hash(a.body, hash(a.var, hash("A")))
+hash(a::NewTypeVar, h::UInt) = hash(a.ub,h) # , hash(a.lb, hash(a.name,h)))
+hash(a::NewUnionAll, h::UInt) = hash(a.body, hash(a.var, hash("A", h)))
 hash(a::NewUnion, h::UInt) = hash(a.b, hash(a.a, hash("U", h)))
 
 import Base.==
@@ -63,7 +63,10 @@ function ==(a::DataTypeKey, b::DataTypeKey)
 end
 ==(a::NewDataType, b::NewDataType) = DataTypeKey(a) == DataTypeKey(b)
 ==(a::NewTypeName, b::NewTypeName) = a.name == b.name
-==(a::NewTypeVar, b::NewTypeVar) = a.name == b.name && a.ub == b.ub && a.lb == b.lb
+function ==(a::NewTypeVar, b::NewTypeVar)
+    # a.name == :S && b.name == :S && error("bail out on :S")
+    a.name == b.name # && a.ub == b.ub && a.lb == b.lb
+end
 ==(a::NewUnionAll, b::NewUnionAll) = a.var == b.var && a.body == b.body
 ==(a::NewUnion, b::NewUnion) = a.a == b.a && b.a == b.b
 
