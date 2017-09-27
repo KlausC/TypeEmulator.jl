@@ -17,7 +17,7 @@ For educational purposes to obtain some insight to the Julia type system and the
 - method dispatching
   - is_more_specific
 
-The documentqation found in https://docs.julialang.org/en/latest/devdocs/types/ shall be followed.
+The documentation found in https://docs.julialang.org/en/latest/devdocs/types/ shall be followed.
 The test cases in https://github.com/JuliaLang/julia/test/subtype.jl shall be proved.
 
 Extensive tests verify, that the results in the meta space coincide with the current Julia behaviour.
